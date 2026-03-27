@@ -1,0 +1,2074 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Propagation de Feu — Simulation</title>
+    <style>
+        :root {
+            --bg: #0d0d12;
+            --surface: #16161f;
+            --surface2: #1e1e2e;
+            --border: rgba(255, 255, 255, 0.06);
+            --accent: #f97316;
+            --green: #22c55e;
+            --blue: #3b82f6;
+            --purple: #a855f7;
+            --text: #e2e8f0;
+            --muted: #64748b;
+            --radius: 14px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* HEADER */
+        header {
+            padding: 16px 28px;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(22, 22, 31, 0.9);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .logo {
+            font-size: 24px;
+        }
+
+        header h1 {
+            font-size: 1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #f97316, #ef4444);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        header p {
+            font-size: .7rem;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .badge {
+            margin-left: auto;
+            font-size: .62rem;
+            font-weight: 600;
+            letter-spacing: .08em;
+            text-transform: uppercase;
+            background: rgba(249, 115, 22, .12);
+            border: 1px solid rgba(249, 115, 22, .25);
+            color: var(--accent);
+            padding: 3px 10px;
+            border-radius: 99px;
+        }
+
+        /* LAYOUT */
+        .main {
+            display: flex;
+            gap: 18px;
+            padding: 20px;
+            align-items: flex-start;
+            flex: 1;
+        }
+
+        .canvas-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .canvas-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        canvas {
+            border-radius: 8px;
+            display: block;
+            width: 100%;
+            max-width: 560px;
+            height: auto;
+            image-rendering: pixelated;
+            cursor: crosshair;
+        }
+
+        canvas:hover {
+            box-shadow: 0 0 0 2px rgba(249, 115, 22, .3);
+        }
+
+        /* CONSOLE */
+        .console-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px;
+            display: none;
+        }
+
+        .console-card.visible {
+            display: block;
+        }
+
+        .console-title {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .console-grid {
+            font-family: 'Courier New', monospace;
+            font-size: .72rem;
+            line-height: 1.4;
+            color: #4ade80;
+            letter-spacing: .05em;
+            white-space: pre;
+        }
+
+        /* CONTROLS */
+        .controls {
+            width: 295px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+        }
+
+        .card-title {
+            font-size: .65rem;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 12px;
+        }
+
+        /* BUTTONS */
+        .btn-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 9px 0;
+            border: none;
+            border-radius: 9px;
+            font-size: .8rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            transition: transform .1s, box-shadow .1s, opacity .15s;
+        }
+
+        .btn:active {
+            transform: scale(.96);
+        }
+
+        .btn:disabled {
+            opacity: .35;
+            cursor: default;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #f97316, #ef4444);
+            color: white;
+            box-shadow: 0 4px 18px rgba(249, 115, 22, .3);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            box-shadow: 0 6px 24px rgba(249, 115, 22, .5);
+        }
+
+        .btn-secondary {
+            background: var(--surface2);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: rgba(255, 255, 255, .07);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, .1);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, .2);
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: rgba(239, 68, 68, .18);
+        }
+
+        /* SLIDERS */
+        .param {
+            margin-bottom: 12px;
+        }
+
+        .param:last-child {
+            margin-bottom: 0;
+        }
+
+        .param-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: .76rem;
+            margin-bottom: 5px;
+        }
+
+        .param-label span {
+            color: var(--muted);
+        }
+
+        .param-value {
+            font-weight: 600;
+            font-size: .76rem;
+            color: var(--accent);
+        }
+
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            height: 3px;
+            background: rgba(255, 255, 255, .1);
+            border-radius: 99px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f97316, #ef4444);
+            box-shadow: 0 0 6px rgba(249, 115, 22, .5);
+            cursor: pointer;
+        }
+
+        /* TOGGLE */
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .toggle-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .toggle-label {
+            font-size: .78rem;
+            color: var(--text);
+        }
+
+        .toggle-sub {
+            font-size: .67rem;
+            color: var(--muted);
+            margin-top: 1px;
+        }
+
+        .toggle {
+            position: relative;
+            width: 38px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        .toggle input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            border-radius: 99px;
+            background: rgba(255, 255, 255, .1);
+            cursor: pointer;
+            transition: background .2s;
+        }
+
+        .toggle-slider::before {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            left: 3px;
+            top: 3px;
+            background: white;
+            border-radius: 50%;
+            transition: transform .2s;
+        }
+
+        .toggle input:checked+.toggle-slider {
+            background: var(--accent);
+        }
+
+        .toggle input:checked+.toggle-slider::before {
+            transform: translateX(18px);
+        }
+
+        /* COMPASS */
+        .compass-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .compass {
+            position: relative;
+            width: 110px;
+            height: 110px;
+        }
+
+        .compass-ring {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+        }
+
+        .compass-dir {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: .6rem;
+            font-weight: 700;
+            color: var(--muted);
+            transform: translate(-50%, -50%);
+            transition: background .15s, color .15s, border-color .15s;
+        }
+
+        .compass-dir:hover {
+            background: rgba(249, 115, 22, .12);
+            color: var(--accent);
+        }
+
+        .compass-dir.active {
+            background: linear-gradient(135deg, #f97316, #ef4444);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 0 10px rgba(249, 115, 22, .45);
+        }
+
+        .compass-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+        }
+
+        .compass-label {
+            font-size: .68rem;
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        /* STATS */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 7px;
+        }
+
+        .stat-box {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            padding: 9px 11px;
+        }
+
+        .stat-label {
+            font-size: .62rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: .07em;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-size: 1.2rem;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .c-sain {
+            color: var(--green);
+        }
+
+        .c-feu {
+            color: var(--accent);
+        }
+
+        .c-brulee {
+            color: var(--muted);
+        }
+
+        .c-etape {
+            color: var(--blue);
+        }
+
+        /* STATUS */
+        .status-row {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--muted);
+            flex-shrink: 0;
+            transition: background .3s;
+        }
+
+        .status-dot.running {
+            background: var(--accent);
+            animation: pulse 1s infinite;
+        }
+
+        .status-dot.done {
+            background: var(--green);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1)
+            }
+
+            50% {
+                opacity: .5;
+                transform: scale(1.4)
+            }
+        }
+
+        .status-text {
+            font-size: .73rem;
+            color: var(--muted);
+        }
+
+        .speed-select {
+            margin-left: auto;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 7px;
+            padding: 3px 7px;
+            font-size: .72rem;
+            cursor: pointer;
+            outline: none;
+        }
+
+        /* LEGEND */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: .7rem;
+            color: var(--muted);
+        }
+
+        .legend-dot {
+            width: 11px;
+            height: 11px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+
+        /* CLASSE BADGE */
+        .class-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            font-size: .62rem;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            margin-right: 4px;
+        }
+
+        .tag-arbre {
+            background: rgba(34, 197, 94, .1);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, .2);
+        }
+
+        .tag-milieu {
+            background: rgba(59, 130, 246, .1);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, .2);
+        }
+
+        .tag-toric {
+            background: rgba(168, 85, 247, .1);
+            color: #c084fc;
+            border: 1px solid rgba(168, 85, 247, .2);
+        }
+
+        .tag-vent {
+            background: rgba(249, 115, 22, .1);
+            color: #fb923c;
+            border: 1px solid rgba(249, 115, 22, .2);
+        }
+
+        .tag-meteo {
+            background: rgba(56, 189, 248, .1);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, .2);
+        }
+
+        /* TOAST */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(70px);
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            padding: 9px 18px;
+            font-size: .78rem;
+            color: var(--text);
+            transition: transform .3s cubic-bezier(.34, 1.56, .64, 1);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+        }
+
+        @media (max-width: 720px) {
+            .main {
+                flex-direction: column;
+            }
+
+            .controls {
+                width: 100%;
+            }
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">🔥</div>
+        <div>
+            <h1>Propagation de Feu — Automate Cellulaire</h1>
+            <p>Voisinage de Von Neumann · Héritage · Encapsulation · Polymorphisme</p>
+        </div>
+        <div class="badge">OOP · Canvas</div>
+    </header>
+
+    <div class="main">
+
+        <!-- CANVAS + CONSOLE -->
+        <div class="canvas-wrap">
+            <div class="canvas-card">
+                <div class="status-row">
+                    <div class="status-dot" id="statusDot"></div>
+                    <span class="status-text" id="statusText">En attente — cliquez sur la grille pour placer un
+                        foyer</span>
+                    <select class="speed-select" id="speedSelect">
+                        <option value="700">Lente</option>
+                        <option value="280" selected>Normale</option>
+                        <option value="100">Rapide</option>
+                        <option value="30">Turbo</option>
+                    </select>
+                </div>
+                <canvas id="fireCanvas" width="560" height="560" title="Cliquez pour démarrer un foyer"></canvas>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#14532d"></div>Sain (T)
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#f97316"></div>En feu (F)
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#292524"></div>Brûlé (B)
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-dot" style="background:#1a1a22;border:1px solid rgba(255,255,255,0.08)">
+                        </div>Vide (.)
+                    </div>
+                </div>
+            </div>
+
+            <!-- CONSOLE AFFICHAGE SYMBOLIQUE -->
+            <div class="console-card" id="consoleCard">
+                <div class="console-title">Affichage console — <span id="consoleGen">génération 0</span> · proportion :
+                    <span id="consoleProp">—</span></div>
+                <div class="console-grid" id="consoleGrid"></div>
+            </div>
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="controls">
+
+            <!-- Classes -->
+            <div class="card">
+                <div class="card-title">Architecture des classes</div>
+                <span class="class-tag tag-arbre">Arbre</span>
+                <span class="class-tag tag-milieu">Milieu / Forêt</span>
+                <span class="class-tag tag-toric">ForetTorique ↳ Milieu</span>
+                <span class="class-tag tag-vent">Vent</span>
+                <span class="class-tag tag-meteo">Météo</span>
+                <div
+                    style="margin-top:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;display:flex;align-items:center;gap:8px;">
+                    <span style="font-size:14px;">🐍</span>
+                    <div>
+                        <div style="font-size:.7rem;font-weight:600;color:var(--text);">simulation_feu.py</div>
+                        <div style="font-size:.62rem;color:var(--muted);margin-top:1px;">Classes Python — même dossier
+                        </div>
+                    </div>
+                    <div style="margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green);flex-shrink:0;"
+                        title="Fichier corrélé présent"></div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="card">
+                <div class="card-title">Simulation</div>
+                <div class="btn-row" style="margin-bottom:8px;">
+                    <button class="btn btn-primary" id="btnStart">▶ Démarrer</button>
+                    <button class="btn btn-secondary" id="btnPause" disabled>⏸ Pause</button>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-secondary" id="btnStep" disabled>⏭ Étape</button>
+                    <button class="btn btn-danger" id="btnReset">↺ Réinitialiser</button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="card">
+                <div class="card-title">Statistiques</div>
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-label">Étape</div>
+                        <div class="stat-value c-etape" id="statEtape">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">En feu 🔥</div>
+                        <div class="stat-value c-feu" id="statFeu">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Sains 🌲</div>
+                        <div class="stat-value c-sain" id="statSain">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">Proportion</div>
+                        <div class="stat-value" style="color:var(--purple)" id="statProp">0%</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options -->
+            <div class="card">
+                <div class="card-title">Options</div>
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">Grille torique</div>
+                        <div class="toggle-sub">ForetTorique ↳ Milieu (héritage)</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="toricToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">Affichage console</div>
+                        <div class="toggle-sub">Symboles . T F B</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="consoleToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="toggle-row">
+                    <div>
+                        <div class="toggle-label">Foyer central</div>
+                        <div class="toggle-sub">Sinon : position aléatoire</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="centreToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Vent -->
+            <div class="card">
+                <div class="card-title">Vent <span
+                        style="color:var(--muted);font-weight:400;text-transform:none;font-size:.65rem;">(facteur
+                        directionnel)</span></div>
+                <div class="compass-wrap">
+                    <div class="compass" id="compass">
+                        <div class="compass-ring"></div>
+                        <div class="compass-center">✦</div>
+                    </div>
+                    <div class="compass-label">Direction : <span id="ventLabel"
+                            style="color:var(--accent);font-weight:700;">N</span></div>
+                </div>
+                <div style="margin-top:12px;">
+                    <div class="param">
+                        <div class="param-label">
+                            <span>Vitesse du vent</span>
+                            <span class="param-value" id="ventVitLabel">2</span>
+                        </div>
+                        <input type="range" id="ventVit" min="0" max="3" step="1" value="2">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Météo -->
+            <div class="card">
+                <div class="card-title">Météo <span
+                        style="color:var(--muted);font-weight:400;text-transform:none;font-size:.65rem;">(coefficient
+                        global)</span></div>
+                <div class="param">
+                    <div class="param-label">
+                        <span>💧 Humidité (%)</span>
+                        <span class="param-value" id="humLabel">40</span>
+                    </div>
+                    <input type="range" id="humidite" min="0" max="100" step="5" value="40">
+                </div>
+                <div class="param">
+                    <div class="param-label">
+                        <span>🌡️ Température (°C)</span>
+                        <span class="param-value" id="tempLabel">30</span>
+                    </div>
+                    <input type="range" id="temperature" min="0" max="50" step="1" value="30">
+                </div>
+            </div>
+
+            <!-- Milieu -->
+            <div class="card">
+                <div class="card-title">Milieu</div>
+                <div class="param">
+                    <div class="param-label">
+                        <span>🌲 Densité d'arbres p</span>
+                        <span class="param-value" id="densLabel">0.70</span>
+                    </div>
+                    <input type="range" id="densite" min="0.10" max="1.00" step="0.05" value="0.70">
+                </div>
+                <div class="param">
+                    <div class="param-label">
+                        <span>📐 Taille grille (n×n)</span>
+                        <span class="param-value" id="tailleLabel">40</span>
+                    </div>
+                    <input type="range" id="taille" min="15" max="60" step="5" value="40">
+                </div>
+            </div>
+
+            <!-- Collecte de données / IA -->
+            <div class="card">
+                <div class="card-title">Collecte de données <span
+                        style="color:var(--muted);font-weight:400;text-transform:none;font-size:.63rem;">→ IA /
+                        ML</span></div>
+
+                <div class="param" style="margin-bottom:10px;">
+                    <div class="param-label">
+                        <span>Nombre de simulations</span>
+                        <span class="param-value" id="batchNLabel">20</span>
+                    </div>
+                    <input type="range" id="batchN" min="5" max="200" step="5" value="20">
+                </div>
+
+                <div class="toggle-row" style="margin-bottom:10px;">
+                    <div>
+                        <div class="toggle-label">Paramètres aléatoires</div>
+                        <div class="toggle-sub">Varie vent, météo, densité entre chaque sim.</div>
+                    </div>
+                    <label class="toggle">
+                        <input type="checkbox" id="batchRandom" checked>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+
+                <div class="btn-row" style="margin-bottom:8px;">
+                    <button class="btn btn-primary" id="btnBatch" style="font-size:.75rem;">⚡ Lancer batch</button>
+                </div>
+                <div class="btn-row" style="margin-bottom:10px;">
+                    <button class="btn btn-secondary" id="btnExportCSV" disabled style="font-size:.72rem;">⬇ CSV
+                        brut</button>
+                    <button class="btn btn-secondary" id="btnExportXLSX" disabled
+                        style="font-size:.72rem;background:rgba(34,197,94,.1);color:#4ade80;border:1px solid rgba(34,197,94,.25);">📊
+                        XLSX formaté</button>
+                </div>
+
+                <!-- Barre de progression batch -->
+                <div id="batchProgressWrap" style="display:none;margin-bottom:10px;">
+                    <div
+                        style="font-size:.68rem;color:var(--muted);margin-bottom:4px;display:flex;justify-content:space-between;">
+                        <span id="batchProgressLabel">0 / 0</span>
+                        <span id="batchPct">0%</span>
+                    </div>
+                    <div style="height:5px;background:rgba(255,255,255,.08);border-radius:99px;overflow:hidden;">
+                        <div id="batchBar"
+                            style="height:100%;width:0%;background:linear-gradient(90deg,#f97316,#ef4444);border-radius:99px;transition:width .2s;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mini-tableau des dernières simulations -->
+                <div id="batchTableWrap" style="display:none;">
+                    <div
+                        style="font-size:.62rem;color:var(--muted);margin-bottom:5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;">
+                        Dernières simulations</div>
+                    <div style="overflow-x:auto;">
+                        <table id="batchTable" style="width:100%;border-collapse:collapse;font-size:.65rem;">
+                            <thead>
+                                <tr>
+                                    <th
+                                        style="padding:4px 6px;background:var(--surface2);color:var(--muted);font-weight:600;text-align:center;border-bottom:1px solid var(--border);">
+                                        #</th>
+                                    <th
+                                        style="padding:4px 6px;background:var(--surface2);color:var(--muted);font-weight:600;text-align:center;border-bottom:1px solid var(--border);">
+                                        p</th>
+                                    <th
+                                        style="padding:4px 6px;background:var(--surface2);color:var(--muted);font-weight:600;text-align:center;border-bottom:1px solid var(--border);">
+                                        Vent</th>
+                                    <th
+                                        style="padding:4px 6px;background:var(--surface2);color:var(--muted);font-weight:600;text-align:center;border-bottom:1px solid var(--border);">
+                                        Étapes</th>
+                                    <th
+                                        style="padding:4px 6px;background:var(--surface2);color:var(--muted);font-weight:600;text-align:center;border-bottom:1px solid var(--border);">
+                                        Brûlés</th>
+                                    <th
+                                        style="padding:4px 6px;background:var(--surface2);color:var(--muted);font-weight:600;text-align:center;border-bottom:1px solid var(--border);">
+                                        Taux</th>
+                                </tr>
+                            </thead>
+                            <tbody id="batchTableBody"></tbody>
+                        </table>
+                    </div>
+                    <div style="font-size:.6rem;color:var(--muted);margin-top:6px;text-align:center;">
+                        Total collecté : <span id="totalCollecte" style="color:var(--accent);font-weight:700;">0</span>
+                        simulations
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        'use strict';
+        // ================================================================
+        //  ARBRE — classe de base
+        //  État encodé en entier : 0=vide, 1=sain, 2=enfeu, 3=brûlé
+        // ================================================================
+        class Arbre {
+
+            // Constantes d'état (encapsulation)
+            static VIDE = 0;
+            static SAIN = 1;
+            static FEU = 2;
+            static BRULEE = 3;
+
+            // Symboles console (méthode requise par l'exercice)
+            static _SYMBOLES = { 0: '.', 1: 'T', 2: 'F', 3: 'B' };
+
+            constructor(etatInitial = Arbre.VIDE) {
+                this._etat = etatInitial;
+                this._tempsEnFeu = 0;
+                // Extension : durée de combustion variable (réalisme)
+                this._dureeMax = Math.floor(Math.random() * 3) + 2; // 2-4 cycles
+            }
+
+            // ---- Accesseurs (encapsulation) ----
+            get etat() { return this._etat; }
+            get estVide() { return this._etat === Arbre.VIDE; }
+            get estSain() { return this._etat === Arbre.SAIN; }
+            get estEnFeu() { return this._etat === Arbre.FEU; }
+            get estBrulee() { return this._etat === Arbre.BRULEE; }
+
+            // ---- Méthode requise par l'exercice ----
+            // Retourne le symbole de la cellule pour l'affichage console
+            symbole() {
+                return Arbre._SYMBOLES[this._etat] ?? '?';
+            }
+
+            // ---- Mise à jour déterministe (règle de base de l'exercice) ----
+            // voisinEnFeu : booléen — un voisin direct est-il en feu ?
+            update(voisinEnFeu) {
+                switch (this._etat) {
+                    case Arbre.SAIN:
+                        if (voisinEnFeu) this._etat = Arbre.FEU;
+                        break;
+                    case Arbre.FEU:
+                        this._etat = Arbre.BRULEE; // brûle en 1 étape (règle stricte)
+                        break;
+                    // VIDE et BRULEE sont absorbants : aucun changement
+                }
+            }
+
+            // ---- Extension : allumage probabiliste (utilisé par Milieu) ----
+            mettreEnFeu() {
+                if (this._etat === Arbre.SAIN) {
+                    this._etat = Arbre.FEU;
+                    this._tempsEnFeu = 0;
+                    return true;
+                }
+                return false;
+            }
+
+            // Extension : combustion progressive (dureeMax cycles avant carbonisation)
+            evoluer() {
+                if (this._etat === Arbre.FEU) {
+                    this._tempsEnFeu++;
+                    if (this._tempsEnFeu >= this._dureeMax) this._etat = Arbre.BRULEE;
+                }
+            }
+        }
+
+        // ================================================================
+        //  VENT — facteur directionnel de propagation
+        //  Calcul par produit scalaire entre direction du vent et vecteur
+        //  de propagation → alignement géométrique exact
+        // ================================================================
+        class Vent {
+
+            // Vecteurs unitaires des 8 directions
+            static VECTEURS = {
+                'N': [0, -1], 'S': [0, 1],
+                'E': [1, 0], 'O': [-1, 0],
+                'NE': [1, -1], 'NO': [-1, -1],
+                'SE': [1, 1], 'SO': [-1, 1],
+            };
+
+            constructor(direction = 'N', vitesse = 2) {
+                this.direction = direction; // clé de VECTEURS
+                this.vitesse = vitesse;   // 0 (calme) … 3 (tempête)
+            }
+
+            // Retourne un multiplicateur pour la propagation vers (dx, dy)
+            // dx, dy ∈ {-1, 0, 1} — fonctionne pour Von Neumann ET Moore
+            facteurPropagation(dx, dy) {
+                if (this.vitesse === 0) return 1;
+                const [vx, vy] = Vent.VECTEURS[this.direction];
+                const dot = dx * vx + dy * vy;
+                const norm = Math.sqrt(dx * dx + dy * dy); // longueur du vecteur de propagation
+                const alignement = dot / norm;         // produit scalaire normalisé ∈ [-√2, √2]
+                const boost = (this.vitesse / 3) * alignement * 0.85;
+                return Math.max(0.05, 1 + boost);
+            }
+        }
+
+        // ================================================================
+        //  MÉTÉO — coefficient global humidité × température
+        // ================================================================
+        class Meteo {
+
+            constructor(humidite = 40, temperature = 30) {
+                this.humidite = humidite;    // 0–100 %
+                this.temperature = temperature; // °C
+            }
+
+            // Coefficient multiplicatif global :
+            // humidité élevée → freine, température élevée → accélère
+            facteurPropagation() {
+                const fHum = 1 - (this.humidite / 100) * 0.75;
+                const fTemp = 1 + (this.temperature - 20) / 50;
+                return Math.max(0.05, fHum * fTemp);
+            }
+        }
+
+        // ================================================================
+        //  MILIEU (= "Forest" de l'exercice)
+        //  Orchestre la grille, les règles de propagation, les stats.
+        //  Voisinage de Von Neumann (4 dirs N/S/E/O) par défaut.
+        // ================================================================
+        class Milieu {
+
+            // Voisinage de Von Neumann : 4 directions cardinales uniquement
+            static VOISINS_VN = [[0, -1], [0, 1], [1, 0], [-1, 0]];
+
+            constructor(nbLignes, nbColonnes, p, vent, meteo) {
+                this.nbLignes = nbLignes;
+                this.nbColonnes = nbColonnes;
+                this.vent = vent;
+                this.meteo = meteo;
+                this._grille = [];
+                this.etape = 0;
+                this.fini = false;
+                this._initialiser(p);
+            }
+
+            // ---- Initialisation (probabilité p pour les arbres) ----
+            _initialiser(p) {
+                this._grille = Array.from({ length: this.nbLignes }, (_, y) =>
+                    Array.from({ length: this.nbColonnes }, (_, x) => {
+                        const etat = Math.random() < p ? Arbre.SAIN : Arbre.VIDE;
+                        return new Arbre(etat);
+                    })
+                );
+                this.etape = 0;
+                this.fini = false;
+            }
+
+            // ---- Démarre un foyer à la position (x, y) ----
+            demarrerFoyer(x, y) {
+                const cell = this._grille[y]?.[x];
+                if (cell && cell.estVide) {
+                    this._grille[y][x] = new Arbre(Arbre.SAIN);
+                }
+                this._grille[y][x]?.mettreEnFeu();
+            }
+
+            // ---- Démarre un foyer au centre ----
+            demarrerFoyerCentre() {
+                this.demarrerFoyer(
+                    Math.floor(this.nbColonnes / 2),
+                    Math.floor(this.nbLignes / 2)
+                );
+            }
+
+            // ---- Démarre un foyer sur un arbre sain aléatoire ----
+            demarrerFoyerAleatoire() {
+                const sains = [];
+                for (let y = 0; y < this.nbLignes; y++)
+                    for (let x = 0; x < this.nbColonnes; x++)
+                        if (this._grille[y][x].estSain) sains.push([x, y]);
+                if (sains.length === 0) return;
+                const [x, y] = sains[Math.floor(Math.random() * sains.length)];
+                this.demarrerFoyer(x, y);
+            }
+
+            // ---- Accès à la grille (abstraction) ----
+            getCellule(x, y) { return this._grille[y]?.[x] ?? null; }
+
+            // ---- Coordonnées des voisins (Von Neumann) ----
+            // Méthode protégée — surchargée dans ForetTorique
+            _coordVoisins(x, y) {
+                return Milieu.VOISINS_VN
+                    .map(([dx, dy]) => [x + dx, y + dy])
+                    .filter(([nx, ny]) =>
+                        nx >= 0 && nx < this.nbColonnes &&
+                        ny >= 0 && ny < this.nbLignes
+                    );
+            }
+
+            // ---- Méthode requise : voisin en feu ? ----
+            voisinEnFeu(x, y) {
+                return this._coordVoisins(x, y)
+                    .some(([nx, ny]) => this._grille[ny][nx].estEnFeu);
+            }
+
+            // ---- Méthode requise : proportion d'arbres sains ----
+            proportion() {
+                const total = this.nbLignes * this.nbColonnes;
+                return this.nbSains() / total;
+            }
+
+            // ---- Méthode requise : simuler n générations ----
+            simuler(n) {
+                for (let i = 0; i < n; i++) {
+                    if (this.fini) break;
+                    this.step();
+                }
+            }
+
+            // ---- Méthode requise : affichage console (symboles) ----
+            afficher() {
+                let sortie = `génération ${this.etape} :\n`;
+                for (let y = 0; y < this.nbLignes; y++) {
+                    sortie += this._grille[y].map(c => c.symbole()).join(' ') + '\n';
+                }
+                sortie += `proportion d'arbres sains : ${this.proportion().toFixed(2)}`;
+                return sortie;
+            }
+
+            // ---- Étape de propagation ----
+            // Règle base (exercice) + extension probabiliste Vent/Météo
+            step() {
+                const probBase = 0.30;
+                const aAllumer = []; // collecte synchrone (pattern automate cellulaire)
+
+                for (let y = 0; y < this.nbLignes; y++) {
+                    for (let x = 0; x < this.nbColonnes; x++) {
+                        if (!this._grille[y][x].estEnFeu) continue;
+
+                        for (const [nx, ny] of this._coordVoisins(x, y)) {
+                            if (!this._grille[ny][nx].estSain) continue;
+
+                            const dx = nx - x, dy = ny - y;
+                            const fVent = this.vent.facteurPropagation(dx, dy);
+                            const fMeteo = this.meteo.facteurPropagation();
+                            const prob = probBase * fVent * fMeteo;
+
+                            if (Math.random() < prob) aAllumer.push([nx, ny]);
+                        }
+                    }
+                }
+
+                // Application synchrone des allumages
+                aAllumer.forEach(([x, y]) => this._grille[y][x].mettreEnFeu());
+
+                // Évolution de chaque cellule
+                for (let y = 0; y < this.nbLignes; y++)
+                    for (let x = 0; x < this.nbColonnes; x++)
+                        this._grille[y][x].evoluer();
+
+                this.etape++;
+                this.fini = this.nbEnFeu() === 0;
+                return !this.fini;
+            }
+
+            // ---- Comptages ----
+            nbEnFeu() { return this._compter(Arbre.FEU); }
+            nbSains() { return this._compter(Arbre.SAIN); }
+            nbBrulees() { return this._compter(Arbre.BRULEE); }
+
+            _compter(etat) {
+                let n = 0;
+                for (let y = 0; y < this.nbLignes; y++)
+                    for (let x = 0; x < this.nbColonnes; x++)
+                        if (this._grille[y][x].etat === etat) n++;
+                return n;
+            }
+        }
+
+        // ================================================================
+        //  FORET TORIQUE — classe enfant de Milieu (héritage)
+        //  Surcharge uniquement _coordVoisins() : les bords se connectent.
+        //  Tout le reste (step, stats, afficher…) est hérité de Milieu.
+        // ================================================================
+        class ForetTorique extends Milieu {
+
+            constructor(nbLignes, nbColonnes, p, vent, meteo) {
+                super(nbLignes, nbColonnes, p, vent, meteo);
+            }
+
+            // Polymorphisme : même signature, comportement différent
+            // Les coordonnées sont calculées modulo (grille circulaire)
+            _coordVoisins(x, y) {
+                return Milieu.VOISINS_VN.map(([dx, dy]) => [
+                    (x + dx + this.nbColonnes) % this.nbColonnes,
+                    (y + dy + this.nbLignes) % this.nbLignes,
+                ]);
+                // Note : pas de filtre — tous les voisins existent toujours
+            }
+        }
+
+
+        // ================================================================
+        //  RENDU — Canvas
+        // ================================================================
+        const canvas = document.getElementById('fireCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Teintes fixes par cellule pour les arbres sains (variation naturelle)
+        let _teintesSaines = [];
+        function _initTeintesSaines(n, m) {
+            _teintesSaines = Array.from({ length: n }, () =>
+                Array.from({ length: m }, () => Math.random())
+            );
+        }
+
+        function lerpHex(c1, c2, t) {
+            const h = s => parseInt(s, 16);
+            const r = (a, b) => Math.round(a + (b - a) * t);
+            const x = n => n.toString(16).padStart(2, '0');
+            const [r1, g1, b1] = [h(c1.slice(1, 3)), h(c1.slice(3, 5)), h(c1.slice(5, 7))];
+            const [r2, g2, b2] = [h(c2.slice(1, 3)), h(c2.slice(3, 5)), h(c2.slice(5, 7))];
+            return `#${x(r(r1, r2))}${x(r(g1, g2))}${x(r(b1, b2))}`;
+        }
+
+        let _frame = 0;
+
+        function dessiner(milieu) {
+            if (!milieu) return;
+            const NL = milieu.nbLignes, NC = milieu.nbColonnes;
+            const SW = canvas.width / NC, SH = canvas.height / NL;
+            _frame++;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let y = 0; y < NL; y++) {
+                for (let x = 0; x < NC; x++) {
+                    const px = x * SW, py = y * SH;
+                    const cell = milieu.getCellule(x, y);
+                    if (!cell) continue;
+
+                    if (cell.estVide) {
+                        ctx.fillStyle = '#1a1a22';
+                        ctx.fillRect(px, py, SW, SH);
+
+                    } else if (cell.estSain) {
+                        const t = _teintesSaines[y]?.[x] ?? 0.5;
+                        ctx.fillStyle = lerpHex('#14532d', '#166534', t);
+                        ctx.fillRect(px, py, SW, SH);
+                        if (SW >= 9) {
+                            ctx.fillStyle = lerpHex('#166534', '#22c55e', t * .5);
+                            ctx.beginPath();
+                            ctx.arc(px + SW / 2, py + SH * 0.45, SW * .27, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+
+                    } else if (cell.estEnFeu) {
+                        // Couleur : jaune vif → rouge selon avancement
+                        const prog = cell._tempsEnFeu / cell._dureeMax;
+                        ctx.fillStyle = lerpHex('#fef08a', '#dc2626', prog);
+                        ctx.fillRect(px, py, SW, SH);
+
+                        // Flamme animée
+                        if (SW >= 7) {
+                            const flicker = 0.8 + 0.2 * Math.sin(_frame * 0.4 + x * 1.9 + y * 2.1);
+                            const cx = px + SW / 2;
+                            const fh = SH * 0.6 * flicker;
+                            ctx.beginPath();
+                            ctx.moveTo(cx, py + SH * .12);
+                            ctx.bezierCurveTo(
+                                cx - SW * .22, py + SH * .5,
+                                cx + SW * .3, py + SH * .55,
+                                cx, py + SH * .12 + fh
+                            );
+                            ctx.fillStyle = 'rgba(255,210,60,0.65)';
+                            ctx.fill();
+                        }
+                        // Halo
+                        const grd = ctx.createRadialGradient(px + SW / 2, py + SH / 2, 0, px + SW / 2, py + SH / 2, SW);
+                        grd.addColorStop(0, 'rgba(251,146,60,.35)');
+                        grd.addColorStop(1, 'rgba(0,0,0,0)');
+                        ctx.fillStyle = grd;
+                        ctx.fillRect(px - SW * .5, py - SH * .5, SW * 2, SH * 2);
+
+                    } else { // brûlée
+                        ctx.fillStyle = '#292524';
+                        ctx.fillRect(px, py, SW, SH);
+                        if (SW >= 9) {
+                            ctx.fillStyle = '#44403c';
+                            const ox = Math.sin(x * 7 + y) * SW * .12;
+                            const oy = Math.cos(x * 3 + y * 5) * SH * .12;
+                            ctx.beginPath();
+                            ctx.arc(px + SW / 2 + ox, py + SH / 2 + oy, SW * .09, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+
+                    // Grille
+                    if (SW >= 7) {
+                        ctx.strokeStyle = 'rgba(0,0,0,.22)';
+                        ctx.lineWidth = .5;
+                        ctx.strokeRect(px, py, SW, SH);
+                    }
+                }
+            }
+        }
+
+
+        // ================================================================
+        //  BOUSSOLE — direction du vent
+        // ================================================================
+        const DIRS = [
+            { id: 'N', top: '6%', left: '50%' }, { id: 'NE', top: '18%', left: '82%' },
+            { id: 'E', top: '50%', left: '94%' }, { id: 'SE', top: '82%', left: '82%' },
+            { id: 'S', top: '94%', left: '50%' }, { id: 'SO', top: '82%', left: '18%' },
+            { id: 'O', top: '50%', left: '6%' }, { id: 'NO', top: '18%', left: '18%' },
+        ];
+        let _ventDir = 'N';
+        const _compass = document.getElementById('compass');
+        DIRS.forEach(({ id, top, left }) => {
+            const btn = document.createElement('div');
+            btn.className = 'compass-dir' + (id === 'N' ? ' active' : '');
+            btn.textContent = id;
+            btn.style.top = top;
+            btn.style.left = left;
+            btn.addEventListener('click', () => {
+                _ventDir = id;
+                _compass.querySelectorAll('.compass-dir').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('ventLabel').textContent = id;
+                if (_milieu) _milieu.vent.direction = id;
+            });
+            _compass.appendChild(btn);
+        });
+
+
+        // ================================================================
+        //  SLIDERS
+        // ================================================================
+        function syncSlider(id, labelId, fmt = v => v) {
+            const el = document.getElementById(id);
+            const lb = document.getElementById(labelId);
+            lb.textContent = fmt(el.value);
+            el.addEventListener('input', () => { lb.textContent = fmt(el.value); });
+            return el;
+        }
+        const sVentVit = syncSlider('ventVit', 'ventVitLabel');
+        const sHumidite = syncSlider('humidite', 'humLabel');
+        const sTemp = syncSlider('temperature', 'tempLabel');
+        const sDensite = syncSlider('densite', 'densLabel', v => parseFloat(v).toFixed(2));
+        const sTaille = syncSlider('taille', 'tailleLabel');
+
+        // Mise à jour live pendant simulation
+        sVentVit.addEventListener('input', () => { if (_milieu) _milieu.vent.vitesse = +sVentVit.value; });
+        sHumidite.addEventListener('input', () => { if (_milieu) _milieu.meteo.humidite = +sHumidite.value; });
+        sTemp.addEventListener('input', () => { if (_milieu) _milieu.meteo.temperature = +sTemp.value; });
+
+
+        // ================================================================
+        //  SIMULATION — boucle principale
+        // ================================================================
+        let _milieu = null;
+        let _timer = null;
+        let _running = false;
+        let _animId = null;
+
+        function _construireMilieu() {
+            const n = +sTaille.value;
+            const p = +sDensite.value;
+            const vent = new Vent(_ventDir, +sVentVit.value);
+            const met = new Meteo(+sHumidite.value, +sTemp.value);
+            _initTeintesSaines(n, n);
+
+            _milieu = document.getElementById('toricToggle').checked
+                ? new ForetTorique(n, n, p, vent, met)
+                : new Milieu(n, n, p, vent, met);
+
+            // Foyer initial
+            if (document.getElementById('centreToggle').checked)
+                _milieu.demarrerFoyerCentre();
+            else
+                _milieu.demarrerFoyerAleatoire();
+        }
+
+        function _mettreAJourStats() {
+            if (!_milieu) return;
+            document.getElementById('statEtape').textContent = _milieu.etape;
+            document.getElementById('statFeu').textContent = _milieu.nbEnFeu();
+            document.getElementById('statSain').textContent = _milieu.nbSains();
+            document.getElementById('statProp').textContent = (_milieu.proportion() * 100).toFixed(1) + '%';
+        }
+
+        function _mettreAJourConsole() {
+            const visible = document.getElementById('consoleToggle').checked;
+            const card = document.getElementById('consoleCard');
+            card.classList.toggle('visible', visible);
+            if (!visible || !_milieu) return;
+
+            // Limiter à 25 lignes/colonnes pour lisibilité
+            const maxL = Math.min(_milieu.nbLignes, 25);
+            const maxC = Math.min(_milieu.nbColonnes, 25);
+            let sortie = '';
+            for (let y = 0; y < maxL; y++) {
+                for (let x = 0; x < maxC; x++) {
+                    sortie += _milieu.getCellule(x, y)?.symbole() ?? '?';
+                    if (x < maxC - 1) sortie += ' ';
+                }
+                sortie += '\n';
+            }
+            document.getElementById('consoleGrid').textContent = sortie;
+            document.getElementById('consoleGen').textContent = `génération ${_milieu.etape}`;
+            document.getElementById('consoleProp').textContent = _milieu.proportion().toFixed(2);
+        }
+
+        function _setStatut(etat) {
+            const dot = document.getElementById('statusDot');
+            dot.className = 'status-dot ' + etat;
+            const msgs = {
+                '': 'En attente — cliquez sur la grille pour placer un foyer',
+                running: 'Simulation en cours…',
+                done: 'Feu éteint — simulation terminée',
+            };
+            document.getElementById('statusText').textContent = msgs[etat] ?? '';
+        }
+
+        function _setBoutons(etat) {
+            document.getElementById('btnStart').disabled = etat === 'running';
+            document.getElementById('btnPause').disabled = etat !== 'running';
+            document.getElementById('btnStep').disabled = etat === 'running' || etat === 'done';
+            sTaille.disabled = etat === 'running' || etat === 'paused';
+            sDensite.disabled = etat === 'running' || etat === 'paused';
+        }
+
+        function _demarrerBoucle() {
+            const interval = +document.getElementById('speedSelect').value;
+            _stopperBoucle();
+            _timer = setInterval(() => {
+                if (!_milieu) return;
+                _milieu.step();
+                _mettreAJourStats();
+                _mettreAJourConsole();
+                if (_milieu.fini) {
+                    _stopperBoucle();
+                    _running = false;
+                    _setStatut('done');
+                    _setBoutons('done');
+                    _toast(`🔥 Feu éteint — ${_milieu.etape} étapes · ${_milieu.nbBrulees()} arbres brûlés`);
+                }
+            }, interval);
+        }
+
+        function _stopperBoucle() {
+            if (_timer) { clearInterval(_timer); _timer = null; }
+        }
+
+        // Boucle de rendu continue
+        function _renderLoop() {
+            dessiner(_milieu);
+            _animId = requestAnimationFrame(_renderLoop);
+        }
+
+        // ---- Boutons ----
+        document.getElementById('btnStart').addEventListener('click', () => {
+            if (!_milieu || _milieu.fini) _construireMilieu();
+            _running = true;
+            _demarrerBoucle();
+            _setStatut('running');
+            _setBoutons('running');
+        });
+
+        document.getElementById('btnPause').addEventListener('click', () => {
+            _stopperBoucle();
+            _running = false;
+            document.getElementById('statusText').textContent = `Pause — étape ${_milieu.etape}`;
+            _setBoutons('paused');
+            document.getElementById('statusDot').className = 'status-dot';
+        });
+
+        document.getElementById('btnStep').addEventListener('click', () => {
+            if (!_milieu) _construireMilieu();
+            _milieu.step();
+            _mettreAJourStats();
+            _mettreAJourConsole();
+            document.getElementById('statusText').textContent = `Pause — étape ${_milieu.etape}`;
+            if (_milieu.fini) {
+                _setStatut('done');
+                _setBoutons('done');
+                _toast(`🔥 Feu éteint — ${_milieu.etape} étapes`);
+            }
+        });
+
+        document.getElementById('btnReset').addEventListener('click', () => {
+            _stopperBoucle();
+            _running = false;
+            _construireMilieu();
+            _mettreAJourStats();
+            _mettreAJourConsole();
+            _setStatut('');
+            _setBoutons('idle');
+            _toast('↺ Simulation réinitialisée');
+        });
+
+        document.getElementById('speedSelect').addEventListener('change', () => {
+            if (_running) _demarrerBoucle();
+        });
+
+        document.getElementById('consoleToggle').addEventListener('change', _mettreAJourConsole);
+
+        document.getElementById('toricToggle').addEventListener('change', () => {
+            const isToric = document.getElementById('toricToggle').checked;
+            _toast(isToric
+                ? '🔵 Mode torique — ForetTorique activée (héritage)'
+                : '⬛ Mode normal — Milieu activé'
+            );
+        });
+
+        // ---- Clic sur canvas : placer un foyer manuel ----
+        canvas.addEventListener('click', (e) => {
+            if (!_milieu) return;
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const px = (e.clientX - rect.left) * scaleX;
+            const py = (e.clientY - rect.top) * scaleY;
+            const x = Math.floor(px / (canvas.width / _milieu.nbColonnes));
+            const y = Math.floor(py / (canvas.height / _milieu.nbLignes));
+            _milieu.demarrerFoyer(x, y);
+            _mettreAJourStats();
+            _mettreAJourConsole();
+        });
+
+        // ---- Toast ----
+        function _toast(msg) {
+            const el = document.getElementById('toast');
+            el.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => el.classList.remove('show'), 2800);
+        }
+
+        // ================================================================
+        //  COLLECTE DE DONNÉES — Batch simulations + export CSV
+        //  Corrélé avec collecte_donnees.py (même logique, même colonnes)
+        // ================================================================
+
+        const _DIRECTIONS_BATCH = ['N', 'S', 'E', 'O', 'NE', 'NO', 'SE', 'SO'];
+        let _donneesCollectees = [];   // accumule entre les batchs
+        let _batchEnCours = false;
+
+        // ---- Sync slider batch ----
+        const sBatchN = document.getElementById('batchN');
+        const lBatchN = document.getElementById('batchNLabel');
+        sBatchN.addEventListener('input', () => { lBatchN.textContent = sBatchN.value; });
+
+        // ---- Génère des params aléatoires (miroir de collecte_donnees.py) ----
+        function _paramsAleatoires() {
+            return {
+                nb_lignes: Math.floor(Math.random() * (60 - 15) + 15),
+                nb_colonnes: Math.floor(Math.random() * (60 - 15) + 15),
+                p: parseFloat((Math.random() * (0.95 - 0.30) + 0.30).toFixed(2)),
+                vent_direction: _DIRECTIONS_BATCH[Math.floor(Math.random() * 8)],
+                vent_vitesse: Math.floor(Math.random() * 4),
+                humidite: parseFloat((Math.random() * (95 - 5) + 5).toFixed(1)),
+                temperature: parseFloat((Math.random() * (48 - 5) + 5).toFixed(1)),
+                torique: Math.random() > 0.5,
+                foyer_centre: Math.random() > 0.5,
+            };
+        }
+
+        // ---- Utilise les params courants de l'UI ----
+        function _paramsUI() {
+            return {
+                nb_lignes: +sTaille.value,
+                nb_colonnes: +sTaille.value,
+                p: +sDensite.value,
+                vent_direction: _ventDir,
+                vent_vitesse: +sVentVit.value,
+                humidite: +sHumidite.value,
+                temperature: +sTemp.value,
+                torique: document.getElementById('toricToggle').checked,
+                foyer_centre: document.getElementById('centreToggle').checked,
+            };
+        }
+
+        // ---- Exécute une simulation complète, retourne les métriques ----
+        function _executerSimulation(params) {
+            const vent = new Vent(params.vent_direction, params.vent_vitesse);
+            const meteo = new Meteo(params.humidite, params.temperature);
+
+            const foret = params.torique
+                ? new ForetTorique(params.nb_lignes, params.nb_colonnes, params.p, vent, meteo)
+                : new Milieu(params.nb_lignes, params.nb_colonnes, params.p, vent, meteo);
+
+            if (params.foyer_centre) foret.demarrerFoyerCentre();
+            else foret.demarrerFoyerAleatoire();
+
+            const sainsInit = foret.nbSains();
+            let picFeu = foret.nbEnFeu();
+            let etapePic = 0;
+            const courbe = [foret.nbEnFeu()];
+            const maxEtapes = 500;
+
+            for (let i = 0; i < maxEtapes; i++) {
+                if (foret.fini) break;
+                foret.step();
+                const fCourant = foret.nbEnFeu();
+                courbe.push(fCourant);
+                if (fCourant > picFeu) { picFeu = fCourant; etapePic = foret.etape; }
+            }
+
+            const brulees = foret.nbBrulees();
+            const surface = params.nb_lignes * params.nb_colonnes;
+            const tauxDestr = sainsInit > 0 ? brulees / sainsInit : 0;
+
+            return {
+                horodatage: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                nb_lignes: params.nb_lignes,
+                nb_colonnes: params.nb_colonnes,
+                surface_totale: surface,
+                p_densite: params.p,
+                vent_direction: params.vent_direction,
+                vent_vitesse: params.vent_vitesse,
+                humidite: params.humidite,
+                temperature: params.temperature,
+                torique: params.torique ? 1 : 0,
+                foyer_centre: params.foyer_centre ? 1 : 0,
+                facteur_meteo: parseFloat(meteo.facteurPropagation().toFixed(4)),
+                sains_initial: sainsInit,
+                vides_initial: surface - sainsInit,
+                etapes_totales: foret.etape,
+                sains_final: foret.nbSains(),
+                brulees_final: brulees,
+                taux_destruction: parseFloat(tauxDestr.toFixed(4)),
+                pic_feu: picFeu,
+                etape_pic_feu: etapePic,
+                vitesse_moy: foret.etape > 0 ? parseFloat((brulees / foret.etape).toFixed(4)) : 0,
+                feu_eteint: foret.fini ? 1 : 0,
+                courbe_feu_json: JSON.stringify(courbe.slice(0, 50)),
+            };
+        }
+
+        // ---- Lance le batch de façon asynchrone (pour ne pas geler l'UI) ----
+        async function _lancerBatch() {
+            if (_batchEnCours) return;
+            _batchEnCours = true;
+
+            const n = +sBatchN.value;
+            const aleatoire = document.getElementById('batchRandom').checked;
+            const resultats = [];
+
+            document.getElementById('batchProgressWrap').style.display = 'block';
+            document.getElementById('batchTableWrap').style.display = 'block';
+            document.getElementById('btnBatch').disabled = true;
+            document.getElementById('btnExportCSV').disabled = true;
+            document.getElementById('btnExportXLSX').disabled = true;
+
+            for (let i = 0; i < n; i++) {
+                const params = aleatoire ? _paramsAleatoires() : _paramsUI();
+                const r = _executerSimulation(params);
+                resultats.push(r);
+                _donneesCollectees.push(r);
+
+                // Mise à jour UI
+                const pct = Math.round((i + 1) / n * 100);
+                document.getElementById('batchBar').style.width = pct + '%';
+                document.getElementById('batchProgressLabel').textContent = `${i + 1} / ${n}`;
+                document.getElementById('batchPct').textContent = pct + '%';
+                document.getElementById('totalCollecte').textContent = _donneesCollectees.length;
+
+                // Ajouter au mini-tableau (max 8 dernières lignes)
+                _ajouterLigneTable(r, _donneesCollectees.length);
+
+                // Pause toutes les 10 sims pour laisser respirer l'UI
+                if (i % 10 === 9) await new Promise(r => setTimeout(r, 0));
+            }
+
+            _batchEnCours = false;
+            document.getElementById('btnBatch').disabled = false;
+            document.getElementById('btnExportCSV').disabled = false;
+            document.getElementById('btnExportXLSX').disabled = false;
+
+            _toast(`⚡ ${n} simulations — ${resultats.filter(r => r.feu_eteint).length}/${n} feux éteints`);
+        }
+
+        function _ajouterLigneTable(r, idx) {
+            const tbody = document.getElementById('batchTableBody');
+            // Garder max 8 lignes
+            while (tbody.rows.length >= 8) tbody.deleteRow(0);
+
+            const taux = (r.taux_destruction * 100).toFixed(1) + '%';
+            const color = r.taux_destruction > 0.3 ? '#ef4444'
+                : r.taux_destruction > 0.1 ? '#f97316'
+                    : '#22c55e';
+
+            const tr = tbody.insertRow();
+            tr.style.borderBottom = '1px solid rgba(255,255,255,.04)';
+            const cells = [
+                [idx, 'var(--muted)'],
+                [r.p_densite.toFixed(2), 'var(--text)'],
+                [r.vent_direction + r.vent_vitesse, 'var(--text)'],
+                [r.etapes_totales, 'var(--blue)'],
+                [r.brulees_final, 'var(--accent)'],
+                [taux, color],
+            ];
+            cells.forEach(([val, col]) => {
+                const td = tr.insertCell();
+                td.textContent = val;
+                td.style.cssText = `padding:3px 6px;text-align:center;color:${col};font-size:.65rem;`;
+            });
+        }
+
+        // ---- Export CSV ----
+        function _exporterCSV() {
+            if (_donneesCollectees.length === 0) return;
+
+            const headers = Object.keys(_donneesCollectees[0]);
+            const lignes = [
+                headers.join(','),
+                ..._donneesCollectees.map(r =>
+                    headers.map(h => {
+                        const v = r[h];
+                        return typeof v === 'string' && (v.includes(',') || v.includes('"'))
+                            ? `"${v.replace(/"/g, '""')}"` : v;
+                    }).join(',')
+                )
+            ];
+
+            const blob = new Blob([lignes.join('\n')], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `simulations_feu_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            _toast(`⬇ CSV exporté — ${_donneesCollectees.length} simulations`);
+        }
+
+        // ================================================================
+        //  EXPORT XLSX FORMATÉ — via xlsx-js-style (même structure que collecte_donnees.py)
+        // ================================================================
+
+        function _exporterXLSX() {
+            if (_donneesCollectees.length === 0) return;
+            if (typeof XLSX === 'undefined') {
+                _toast('⚠ Librairie XLSX non chargée — vérifiez votre connexion');
+                return;
+            }
+
+            // ---- Définition des colonnes (miroir exact de collecte_donnees.py) ----
+            const COLS = [
+                { key: 'horodatage', label: 'Horodatage', g: 'info', w: 22 },
+                { key: 'nb_lignes', label: 'Nb Lignes', g: 'feature', w: 10 },
+                { key: 'nb_colonnes', label: 'Nb Colonnes', g: 'feature', w: 12 },
+                { key: 'surface_totale', label: 'Surface totale', g: 'feature', w: 14 },
+                { key: 'p_densite', label: 'Densité p', g: 'feature', w: 11, fmt: '0.00' },
+                { key: 'vent_direction', label: 'Vent Direction', g: 'feature', w: 14 },
+                { key: 'vent_vitesse', label: 'Vent Vitesse', g: 'feature', w: 12 },
+                { key: 'humidite', label: 'Humidité (%)', g: 'feature', w: 13 },
+                { key: 'temperature', label: 'Température (°C)', g: 'feature', w: 16 },
+                { key: 'torique', label: 'Torique (0/1)', g: 'feature', w: 13 },
+                { key: 'foyer_centre', label: 'Foyer Centre (0/1)', g: 'feature', w: 16 },
+                { key: 'facteur_meteo', label: 'Facteur Météo', g: 'feature', w: 14, fmt: '0.000' },
+                { key: 'sains_initial', label: 'Arbres Init.', g: 'info', w: 13 },
+                { key: 'vides_initial', label: 'Cases Vides Init.', g: 'info', w: 16 },
+                { key: 'etapes_totales', label: 'Étapes', g: 'target', w: 10 },
+                { key: 'sains_final', label: 'Arbres Sains Final', g: 'target', w: 18 },
+                { key: 'brulees_final', label: 'Arbres Brûlés', g: 'target', w: 14 },
+                { key: 'taux_destruction', label: 'Taux Destruction', g: 'target', w: 16, fmt: '0.0%' },
+                { key: 'pic_feu', label: 'Pic Feu', g: 'target', w: 10 },
+                { key: 'etape_pic_feu', label: 'Étape Pic Feu', g: 'target', w: 14 },
+                { key: 'vitesse_moy', label: 'Vitesse Moy.', g: 'target', w: 14, fmt: '0.00' },
+                { key: 'feu_eteint', label: 'Feu Éteint (0/1)', g: 'target', w: 16 },
+                { key: 'courbe_feu_json', label: 'Courbe Feu (50 pts)', g: 'info', w: 38 },
+            ];
+
+            const FEATURES = new Set(COLS.filter(c => c.g === 'feature').map(c => c.key));
+            const TARGETS = new Set(COLS.filter(c => c.g === 'target').map(c => c.key));
+            const NUMS_MOY = new Set(['nb_lignes', 'nb_colonnes', 'surface_totale', 'p_densite',
+                'vent_vitesse', 'humidite', 'temperature', 'facteur_meteo', 'sains_initial',
+                'vides_initial', 'etapes_totales', 'sains_final', 'brulees_final',
+                'taux_destruction', 'pic_feu', 'etape_pic_feu', 'vitesse_moy', 'feu_eteint']);
+
+            // ---- Palettes de couleurs ----
+            const F = {
+                title: { patternType: 'solid', fgColor: { rgb: '1A1A2E' } },
+                feature: { patternType: 'solid', fgColor: { rgb: '1565C0' } },
+                target: { patternType: 'solid', fgColor: { rgb: '2E7D32' } },
+                info: { patternType: 'solid', fgColor: { rgb: '37474F' } },
+                legende: { patternType: 'solid', fgColor: { rgb: 'FFF9F0' } },
+                total: { patternType: 'solid', fgColor: { rgb: '37474F' } },
+                even: { patternType: 'solid', fgColor: { rgb: 'F8F8F8' } },
+                odd: { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } },
+                green: { patternType: 'solid', fgColor: { rgb: 'C8E6C9' } },
+                yellow: { patternType: 'solid', fgColor: { rgb: 'FFF9C4' } },
+                red: { patternType: 'solid', fgColor: { rgb: 'FFCDD2' } },
+            };
+
+            // Helper : crée une cellule SheetJS avec style
+            const cell = (v, t, fill, opts = {}) => ({
+                v, t,
+                s: {
+                    font: {
+                        name: 'Arial', sz: opts.sz || 9, bold: !!opts.bold, italic: !!opts.italic,
+                        color: { rgb: opts.color || '000000' }
+                    },
+                    fill,
+                    alignment: {
+                        horizontal: opts.ha || 'center', vertical: 'center',
+                        wrapText: !!opts.wrap
+                    },
+                    ...(opts.fmt ? { z: opts.fmt } : {}),
+                },
+                ...(opts.fmt ? { z: opts.fmt } : {}),
+            });
+
+            const wb = XLSX.utils.book_new();
+            const N = _donneesCollectees.length;
+            const NC = COLS.length;
+
+            // ================================================================
+            //  FEUILLE 1 : Simulations
+            // ================================================================
+            const ws1 = {};
+            const lastColLetter = XLSX.utils.encode_col(NC - 1);
+
+            // Ligne 1 — Titre (r=0)
+            ws1[XLSX.utils.encode_cell({ r: 0, c: 0 })] = cell(
+                '🔥 Simulations de Propagation de Feu — Données pour IA',
+                's', F.title,
+                { bold: true, sz: 13, color: 'F97316', ha: 'left' }
+            );
+            for (let c = 1; c < NC; c++)
+                ws1[XLSX.utils.encode_cell({ r: 0, c })] = cell('', 's', F.title);
+
+            // Ligne 2 — Headers (r=1)
+            COLS.forEach((col, c) => {
+                ws1[XLSX.utils.encode_cell({ r: 1, c })] = cell(
+                    col.label, 's',
+                    FEATURES.has(col.key) ? F.feature : TARGETS.has(col.key) ? F.target : F.info,
+                    { bold: true, color: 'FFFFFF', wrap: true, sz: 9 }
+                );
+            });
+
+            // Ligne 3 — Légende (r=2)
+            ws1[XLSX.utils.encode_cell({ r: 2, c: 0 })] = cell(
+                '  🔵 Colonnes bleues = Features (entrées ML)     🟢 Colonnes vertes = Targets (sorties ML à prédire)',
+                's', F.legende,
+                { italic: true, sz: 8, color: '555555', ha: 'left' }
+            );
+            for (let c = 1; c < NC; c++)
+                ws1[XLSX.utils.encode_cell({ r: 2, c })] = cell('', 's', F.legende);
+
+            // Lignes de données (r=3 → 3+N-1)
+            _donneesCollectees.forEach((sim, ri) => {
+                const r = 3 + ri;
+                const bg = r % 2 === 0 ? F.even : F.odd;
+
+                COLS.forEach((col, c) => {
+                    const v = sim[col.key] ?? '';
+                    const isN = typeof v === 'number';
+                    let fill = bg;
+
+                    if (col.key === 'taux_destruction') {
+                        fill = v > 0.3 ? F.red : v > 0.1 ? F.yellow : F.green;
+                    }
+                    if (col.key === 'feu_eteint') {
+                        fill = v === 1 ? F.green : F.red;
+                    }
+
+                    const c_ = cell(v, isN ? 'n' : 's', fill, { fmt: col.fmt });
+                    ws1[XLSX.utils.encode_cell({ r, c })] = c_;
+                });
+            });
+
+            // Ligne MOYENNES (r = 3 + N)
+            const rMoy = 3 + N;
+            ws1[XLSX.utils.encode_cell({ r: rMoy, c: 0 })] = cell('MOYENNES', 's', F.total, { bold: true, color: 'FFFFFF' });
+            COLS.forEach((col, c) => {
+                if (c === 0 || !NUMS_MOY.has(col.key)) return;
+                const colL = XLSX.utils.encode_col(c);
+                const rDebut = 4;     // Excel row 4 = premier data (r=3, 0-indexed)
+                const rFin = 3 + N; // Excel row 3+N = dernier data
+                ws1[XLSX.utils.encode_cell({ r: rMoy, c })] = {
+                    f: `AVERAGE(${colL}${rDebut}:${colL}${rFin})`,
+                    t: 'n',
+                    s: {
+                        font: { name: 'Arial', sz: 9, bold: true, color: { rgb: 'FFFFFF' } },
+                        fill: F.total,
+                        alignment: { horizontal: 'center', vertical: 'center' },
+                        ...(col.fmt ? { z: col.fmt } : {})
+                    },
+                    ...(col.fmt ? { z: col.fmt } : {}),
+                };
+            });
+
+            ws1['!ref'] = `A1:${lastColLetter}${rMoy + 1}`;
+            ws1['!cols'] = COLS.map(c => ({ wch: c.w }));
+            ws1['!rows'] = [{ hpt: 28 }, { hpt: 36 }, { hpt: 18 }];
+            ws1['!merges'] = [
+                { s: { r: 0, c: 0 }, e: { r: 0, c: NC - 1 } },
+                { s: { r: 2, c: 0 }, e: { r: 2, c: NC - 1 } },
+            ];
+
+            XLSX.utils.book_append_sheet(wb, ws1, 'Simulations');
+
+            // ================================================================
+            //  FEUILLE 2 : Résumé (stats calculées en JS)
+            // ================================================================
+            const ws2 = {};
+
+            ws2['A1'] = cell('📊 Résumé statistique', 's',
+                { patternType: 'solid', fgColor: { rgb: '1A1A2E' } },
+                { bold: true, sz: 12, color: 'FFFFFF', ha: 'left' }
+            );
+            ws2['A2'] = cell(`Nombre de simulations : ${N}`, 's',
+                { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } },
+                { italic: true, sz: 9, color: '666666', ha: 'left' }
+            );
+
+            const hdrs2 = ['Métrique', 'Min', 'Max', 'Moyenne', 'Écart-type', 'Médiane'];
+            hdrs2.forEach((h, c) => {
+                ws2[XLSX.utils.encode_cell({ r: 2, c })] = cell(h, 's',
+                    { patternType: 'solid', fgColor: { rgb: 'C2440C' } },
+                    { bold: true, color: 'FFFFFF' }
+                );
+            });
+
+            const metriques2 = [
+                { label: 'Étapes totales', key: 'etapes_totales' },
+                { label: 'Arbres brûlés', key: 'brulees_final' },
+                { label: 'Taux de destruction', key: 'taux_destruction', fmt: '0.0%' },
+                { label: 'Pic de feu', key: 'pic_feu' },
+                { label: 'Facteur météo', key: 'facteur_meteo', fmt: '0.000' },
+                { label: 'Densité p', key: 'p_densite', fmt: '0.00' },
+                { label: 'Humidité (%)', key: 'humidite' },
+                { label: 'Température (°C)', key: 'temperature' },
+            ];
+
+            const stat = (arr) => {
+                const s = arr.filter(v => !isNaN(v)).sort((a, b) => a - b);
+                if (!s.length) return { min: 0, max: 0, avg: 0, std: 0, med: 0 };
+                const avg = s.reduce((a, b) => a + b, 0) / s.length;
+                const std = Math.sqrt(s.reduce((a, b) => a + (b - avg) ** 2, 0) / s.length);
+                const med = s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+                return { min: s[0], max: s[s.length - 1], avg, std, med };
+            };
+
+            metriques2.forEach((m, ri) => {
+                const r = 3 + ri;
+                const vals = _donneesCollectees.map(d => d[m.key]);
+                const st = stat(vals);
+                const bg = { patternType: 'solid', fgColor: { rgb: ri % 2 === 0 ? 'FFFFFF' : 'FFF9F0' } };
+                const fmt = m.fmt || '0.0';
+                const row = [m.label, st.min, st.max, st.avg, st.std, st.med];
+                row.forEach((v, c) => {
+                    ws2[XLSX.utils.encode_cell({ r, c })] = cell(
+                        v, c === 0 ? 's' : 'n', bg,
+                        { bold: c === 0, ha: c === 0 ? 'left' : 'center', fmt: c > 0 ? fmt : undefined }
+                    );
+                });
+            });
+
+            ws2['!ref'] = `A1:F${3 + metriques2.length}`;
+            ws2['!cols'] = [{ wch: 28 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }];
+            ws2['!rows'] = [{ hpt: 26 }, { hpt: 18 }, { hpt: 22 }];
+
+            XLSX.utils.book_append_sheet(wb, ws2, 'Résumé');
+
+            // ================================================================
+            //  FEUILLE 3 : Guide ML
+            // ================================================================
+            const ws3 = {};
+            const guide = [
+                ['🤖 Guide d\'utilisation pour modèle IA'],
+                [''],
+                ['FEATURES (entrées — X)'],
+                ['p_densite', 'Probabilité initiale d\'arbre', 'Variable clé — seuil de percolation ≈ 0.59'],
+                ['vent_vitesse', 'Force du vent (0-3)', 'Accélère la propagation dans la direction du vent'],
+                ['vent_direction', 'Direction du vent (catégorielle)', 'Encoder en angle 0-360° ou one-hot 8 colonnes'],
+                ['humidite', 'Humidité relative (%)', 'Corrélé négativement aux brûlés'],
+                ['temperature', 'Température (°C)', 'Corrélé positivement aux brûlés'],
+                ['facteur_meteo', 'Coefficient météo composé', 'Feature dérivée utile — f_hum × f_temp'],
+                ['torique', 'Grille torique (0/1)', 'Le feu ne s\'arrête pas aux bords'],
+                ['surface_totale', 'Surface de la grille', 'nb_lignes × nb_colonnes'],
+                [''],
+                ['TARGETS (sorties — y)'],
+                ['taux_destruction', 'Proportion détruite', 'Régression principale (0-1) — cible recommandée'],
+                ['etapes_totales', 'Durée de la simulation', 'Régression — nb cycles jusqu\'à extinction'],
+                ['brulees_final', 'Arbres brûlés', 'Régression — grandeur absolue'],
+                ['pic_feu', 'Pic de feu simultané', 'Régression — intensité maximale'],
+                ['feu_eteint', 'Feu éteint ? (0/1)', 'Classification binaire'],
+                [''],
+                ['⚠ Le seuil de percolation (p ≈ 0.59) est la non-linéarité centrale du système.'],
+            ];
+
+            guide.forEach((row, r) => {
+                if (!row.length || row[0] === '') return;
+                const isTitle = r === 0;
+                const isGroup = row[0] === 'FEATURES (entrées — X)' || row[0] === 'TARGETS (sorties — y)';
+                const isNote = row[0].startsWith('⚠');
+                const bg = isTitle ? F.title : isGroup ? F.feature : { patternType: 'solid', fgColor: { rgb: 'FFFFFF' } };
+                if (isGroup && row[0].includes('TARGETS')) {
+                    Object.assign(bg, { patternType: 'solid', fgColor: { rgb: '2E7D32' } });
+                }
+                row.forEach((v, c) => {
+                    ws3[XLSX.utils.encode_cell({ r, c })] = cell(v, 's', bg,
+                        {
+                            bold: isTitle || isGroup || c === 0, sz: isTitle ? 12 : 9,
+                            color: (isTitle || isGroup) ? 'FFFFFF' : isNote ? '774400' : '000000',
+                            ha: c === 0 ? 'left' : 'left',
+                            wrap: isNote || isTitle
+                        }
+                    );
+                });
+            });
+
+            ws3['!ref'] = `A1:D${guide.length}`;
+            ws3['!cols'] = [{ wch: 24 }, { wch: 32 }, { wch: 52 }, { wch: 8 }];
+
+            XLSX.utils.book_append_sheet(wb, ws3, 'Guide ML');
+
+            // ---- Téléchargement ----
+            const date = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `simulations_feu_${date}.xlsx`);
+            _toast(`📊 XLSX exporté — ${N} simulations`);
+        }
+
+        document.getElementById('btnBatch').addEventListener('click', _lancerBatch);
+        document.getElementById('btnExportCSV').addEventListener('click', _exporterCSV);
+        document.getElementById('btnExportXLSX').addEventListener('click', _exporterXLSX);
+
+        // ================================================================
+        //  INIT
+        // ================================================================
+        _construireMilieu();
+        _mettreAJourStats();
+        _mettreAJourConsole();
+        _setStatut('');
+        _setBoutons('idle');
+        _renderLoop();
+
+    </script>
+</body>
+
+</html>
